@@ -1,0 +1,27 @@
+groups:
+  - name: security_infrastructure_alerts
+    rules:
+      # Alert for SSH brute force attempts
+      # It calculates the increase of failed logins over 1 minute.
+      # If the increase is greater than 5, it triggers the alert.
+      - alert: SSHBruteForceAttempt
+        expr: increase(node_failed_ssh_logins_total[1m]) > 5
+        for: 10s
+        labels:
+          severity: critical
+          security_phase: detection
+        annotations:
+          summary: "SSH Brute Force Attack Detected"
+          description: "SSH failed login attempts increased by {{ $value | printf \"%.0f\" }} in the last 1 minute on host {{ $labels.instance }}."
+
+      # Alert for host CPU spike
+      # It calculates CPU usage as 100 minus the idle time percentage.
+      - alert: CPUHighUsage
+        expr: (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[1m])) by (instance)) * 100 > 80
+        for: 10s
+        labels:
+          severity: warning
+          security_phase: degradation
+        annotations:
+          summary: "High CPU Spike Detected"
+          description: "CPU usage on {{ $labels.instance }} is currently at {{ $value | printf \"%.2f\" }}% (exceeded 80% threshold)."

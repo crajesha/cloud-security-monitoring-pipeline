@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Local Telemetry & Monitoring data
+node_exporter_metrics/
+mock_auth.log
+prometheus_data/
+grafana_data/
+
+# OS specific files
+.DS_Store
+Thumbs.db
+Desktop.ini

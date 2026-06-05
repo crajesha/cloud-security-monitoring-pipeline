@@ -1,0 +1,126 @@
+apiVersion: 1
+
+# Configure the contact points for alert routing
+contactPoints:
+  - name: Slack-InfoSec-Alerts
+    receivers:
+      - uid: slack-receiver-infosec
+        type: slack
+        disableResolveMessage: false
+        settings:
+          # Pulls the Slack Webhook URL from the environment variable set in docker-compose.yml
+          url: ${SLACK_WEBHOOK_URL}
+          recipient: "#security-alerts"
+          mentionUsers: ""
+          mentionGroups: ""
+          title: '🚨 Grafana Alert: {{ .CommonAnnotations.summary }}'
+          text: |
+            *Alert Status*: {{ .Status | upper }}
+            *Details*: {{ .CommonAnnotations.description }}
+            *Severity*: {{ .CommonLabels.severity }}
+            *Active Alerts*:
+            {{ range .Alerts }}
+              - *Metric*: {{ .Labels.instance }} (Value: {{ .Values.A }})
+            {{ end }}
+
+# Set up routing policies
+policies:
+  - orgId: 1
+    receiver: Slack-InfoSec-Alerts
+    groupBy: ['alertname', 'severity']
+    groupWait: 5s
+    groupInterval: 10s
+    repeatInterval: 5m
+    routes:
+      - receiver: Slack-InfoSec-Alerts
+        object_matchers:
+          - ["severity", "critical"]
+
+# Automatically provision alert rules
+groups:
+  - orgId: 1
+    name: "Security Telemetry Alerts"
+    folder: "Security Monitoring"
+    interval: 10s
+    rules:
+      # Rule 1: Failed SSH logins > 5/min
+      - uid: alert-ssh-brute-force
+        title: "[Security] SSH Brute Force Attacks Detected"
+        condition: B
+        for: 10s
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: "SSH Brute Force Attack Detected"
+          description: "High rate of failed SSH logins detected on host. Rate has exceeded 5 failed attempts per minute (current increase: ${values.B} attempts)."
+        labels:
+          severity: critical
+          project: infosec-pipeline
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: Prometheus
+            model:
+              expr: sum(increase(node_failed_ssh_logins_total[1m]))
+              intervalMs: 5000
+              maxDataPoints: 43200
+              refId: A
+          # Reduce query to verify if value > 5
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: classic_conditions
+              refId: B
+              conditions:
+                - evaluator:
+                    params: [5]
+                    type: gt
+                  query:
+                    params: [A]
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+
+      # Rule 2: Host CPU spike > 80%
+      - uid: alert-host-cpu-spike
+        title: "[Infrastructure] Host CPU Spike Detected (>80%)"
+        condition: B
+        for: 10s
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: "High CPU Spike Detected"
+          description: "Host CPU utilization has exceeded 80% threshold (current load: ${values.B}%)."
+        labels:
+          severity: warning
+          project: infosec-pipeline
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: Prometheus
+            model:
+              expr: (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[1m])) by (instance)) * 100
+              intervalMs: 5000
+              maxDataPoints: 43200
+              refId: A
+          # Reduce query to verify if value > 80
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: classic_conditions
+              refId: B
+              conditions:
+                - evaluator:
+                    params: [80]
+                    type: gt
+                  query:
+                    params: [A]
+                  reducer:
+                    params: []
+                    type: last
+                  type: query

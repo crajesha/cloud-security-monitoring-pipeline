@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 5s       # Short scrape interval for rapid alerting feedback
+  evaluation_interval: 5s   # Short evaluation interval for rules
+  scrape_timeout: 4s
+
+# Alertmanager configuration (if Alertmanager is used)
+# For this project, Grafana Alerting will query Prometheus directly,
+# but we configure the Prometheus rule evaluator as well.
+rule_files:
+  - "alert_rules.yml"
+
+scrape_configs:
+  - job_name: 'flask-app'
+    static_configs:
+      - targets: ['flask-app:5000']
+
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
